@@ -1,0 +1,67 @@
+package com.example.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+// Theme Palettes
+// 1. Emerald (الأخضر القرآني)
+val EmeraldPrimary = Color(0xFF0E6655)
+val EmeraldOnPrimary = Color(0xFFFFFFFF)
+val EmeraldPrimaryContainer = Color(0xFFD1F2EB)
+val EmeraldOnPrimaryContainer = Color(0xFF07372C)
+val EmeraldSecondary = Color(0xFFD4AF37) // Islamic Gold
+val EmeraldBackground = Color(0xFFF9FAF9)
+val EmeraldSurface = Color(0xFFFFFFFF)
+val EmeraldDarkBackground = Color(0xFF0E1A17)
+val EmeraldDarkSurface = Color(0xFF162521)
+val EmeraldDarkPrimary = Color(0xFF48C9B0)
+
+// 2. Royal Navy (الأزرق الملكي)
+val NavyPrimary = Color(0xFF1A365D)
+val NavyOnPrimary = Color(0xFFFFFFFF)
+val NavyPrimaryContainer = Color(0xFFE2E8F0)
+val NavySecondary = Color(0xFFD69E2E)
+val NavyBackground = Color(0xFFF7FAFC)
+val NavySurface = Color(0xFFFFFFFF)
+val NavyDarkBackground = Color(0xFF0F172A)
+val NavyDarkSurface = Color(0xFF1E293B)
+val NavyDarkPrimary = Color(0xFF63B3ED)
+
+// 3. Classic Gold (الذهبي الفاخر)
+val GoldPrimary = Color(0xFF8C6D23)
+val GoldOnPrimary = Color(0xFFFFFFFF)
+val GoldPrimaryContainer = Color(0xFFFEFCBF)
+val GoldSecondary = Color(0xFF2D3748)
+val GoldBackground = Color(0xFFFDFBF7)
+val GoldSurface = Color(0xFFFFFFFF)
+val GoldDarkBackground = Color(0xFF1C1917)
+val GoldDarkSurface = Color(0xFF292524)
+val GoldDarkPrimary = Color(0xFFF6E05E)
+
+// 4. Lavender (الخزامى الأنيق)
+val LavenderPrimary = Color(0xFF5E4B8B)
+val LavenderOnPrimary = Color(0xFFFFFFFF)
+val LavenderPrimaryContainer = Color(0xFFE9D8FD)
+val LavenderSecondary = Color(0xFF319795)
+val LavenderBackground = Color(0xFFFAF5FF)
+val LavenderSurface = Color(0xFFFFFFFF)
+val LavenderDarkBackground = Color(0xFF1A1625)
+val LavenderDarkSurface = Color(0xFF282338)
+val LavenderDarkPrimary = Color(0xFFB794F4)
+
+// 5. Andalusian Maroon (العنابي الأندلسي)
+val MaroonPrimary = Color(0xFF7B1E34)
+val MaroonOnPrimary = Color(0xFFFFFFFF)
+val MaroonPrimaryContainer = Color(0xFFFED7D7)
+val MaroonSecondary = Color(0xFFC05621)
+val MaroonBackground = Color(0xFFFFF5F5)
+val MaroonSurface = Color(0xFFFFFFFF)
+val MaroonDarkBackground = Color(0xFF1F0D12)
+val MaroonDarkSurface = Color(0xFF33161F)
+val MaroonDarkPrimary = Color(0xFFFEB2B2)
+
+// Quran Reading Paper Tints
+val PaperNormal = Color(0xFFFFFFFF)
+val PaperSepia = Color(0xFFF8F3E6)
+val PaperSepiaBorder = Color(0xFFD4AF37)
+val PaperNight = Color(0xFF141414)
+val PaperNightText = Color(0xFFE2E8F0)

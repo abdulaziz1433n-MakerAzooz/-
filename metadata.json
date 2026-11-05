@@ -1,0 +1,8 @@
+{
+  "name": "القرآن الكريم PDF",
+  "description": "تطبيق مصحف وقارئ ملفات القرآن الكريم بصيغة PDF مع إمكانية التحميل والإشعارات وسجل القراءة وإدارة وقت التلاوة",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">القرآن الكريم PDF</string>
+    <string name="nav_mushafs">تحميل المصاحف</string>
+    <string name="nav_history">سجل الملفات</string>
+    <string name="nav_settings">الإعدادات</string>
+    <string name="nav_reader">قارئ القرآن</string>
+
+    <!-- Settings tabs -->
+    <string name="settings_appearance">المظهر</string>
+    <string name="settings_notifications">الإشعارات</string>
+    <string name="settings_screen_time">مدة استخدام الجهاز</string>
+    <string name="settings_about">حول</string>
+
+    <!-- Notification channel -->
+    <string name="channel_quran_reminder">تذكير تلاوة القرآن</string>
+    <string name="channel_quran_desc">إشعارات يومية لتذكيرك بقراءة وردك من القرآن الكريم</string>
+</resources>

@@ -157,63 +157,78 @@ class QuranRepository(private val context: Context) {
             val item = _mushafs.value.find { it.id == mushafId }
                 ?: return@withContext Result.failure(Exception("المصحف غير موجود"))
 
-            updateMushafDownloading(mushafId, isDownloading = true, progress = 0.05f)
+            updateMushafDownloading(mushafId, isDownloading = true, progress = 0f)
             val dir = File(context.filesDir, "mushafs")
-            if (!dir.exists()) dir.mkdirs()
+            if (!dir.exists() && !dir.mkdirs()) {
+                updateMushafDownloading(mushafId, isDownloading = false, progress = 0f)
+                return@withContext Result.failure(Exception("تعذر إنشاء مجلد المصاحف"))
+            }
 
             val targetFile = File(dir, "${mushafId}.pdf")
+            val temporaryFile = File(dir, "${mushafId}.pdf.part")
 
             try {
-                // Try downloading from URL with OkHttp
-                val request = Request.Builder().url(item.downloadUrl).build()
-                var downloadedSuccessfully = false
+                val request = Request.Builder()
+                    .url(item.downloadUrl)
+                    .header("User-Agent", "QuranPdfReader/1.0")
+                    .build()
 
-                try {
-                    val response = okHttpClient.newCall(request).execute()
-                    if (response.isSuccessful && response.body != null) {
-                        val body = response.body!!
-                        val totalBytes = body.contentLength()
-                        val inputStream = body.byteStream()
-                        val outputStream = FileOutputStream(targetFile)
-
-                        val buffer = ByteArray(8192)
-                        var bytesRead: Int
-                        var readSoFar = 0L
-
-                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                            outputStream.write(buffer, 0, bytesRead)
-                            readSoFar += bytesRead
-                            if (totalBytes > 0) {
-                                val prog = (readSoFar.toFloat() / totalBytes.toFloat()).coerceIn(0.05f, 0.99f)
-                                onProgress(prog)
-                                updateMushafDownloading(mushafId, isDownloading = true, progress = prog)
-                            }
-                        }
-                        outputStream.flush()
-                        outputStream.close()
-                        inputStream.close()
-                        downloadedSuccessfully = targetFile.length() > 2000
+                okHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw java.io.IOException("فشل تنزيل الملف: HTTP ${response.code}")
                     }
-                } catch (netEx: Exception) {
-                    // In restricted environments or offline sandbox, generate an authentic local replica
-                    downloadedSuccessfully = false
+
+                    val body = response.body
+                        ?: throw java.io.IOException("مصدر PDF أعاد ملفًا فارغًا")
+
+                    val totalBytes = body.contentLength()
+                    body.byteStream().use { input ->
+                        FileOutputStream(temporaryFile).use { output ->
+                            val buffer = ByteArray(16 * 1024)
+                            var read: Int
+                            var downloaded = 0L
+
+                            while (input.read(buffer).also { read = it } != -1) {
+                                output.write(buffer, 0, read)
+                                downloaded += read
+
+                                if (totalBytes > 0L) {
+                                    val progress = (downloaded.toFloat() / totalBytes.toFloat())
+                                        .coerceIn(0f, 0.99f)
+                                    onProgress(progress)
+                                    updateMushafDownloading(
+                                        mushafId,
+                                        isDownloading = true,
+                                        progress = progress
+                                    )
+                                }
+                            }
+                            output.fd.sync()
+                        }
+                    }
                 }
 
-                if (!downloadedSuccessfully) {
-                    // Create an authentic high quality local copy based on the starter generator
-                    for (step in 1..10) {
-                        kotlinx.coroutines.delay(120)
-                        val p = step / 10f
-                        onProgress(p)
-                        updateMushafDownloading(mushafId, isDownloading = true, progress = p)
-                    }
-                    val starter = StarterQuranPdfGenerator.generateStarterMushaf(context)
-                    starter.copyTo(targetFile, overwrite = true)
+                // Reject HTML error pages or incomplete downloads masquerading as PDFs.
+                val header = ByteArray(5)
+                val headerRead = temporaryFile.inputStream().use { it.read(header) }
+                if (headerRead != 5 || String(header, Charsets.US_ASCII) != "%PDF-" ||
+                    temporaryFile.length() < 1024L
+                ) {
+                    throw java.io.IOException("الملف الذي تم تنزيله ليس ملف PDF صالحًا")
+                }
+
+                if (targetFile.exists() && !targetFile.delete()) {
+                    throw java.io.IOException("تعذر استبدال ملف المصحف القديم")
+                }
+                if (!temporaryFile.renameTo(targetFile)) {
+                    throw java.io.IOException("تعذر حفظ ملف PDF بعد اكتمال التنزيل")
                 }
 
                 updateMushafDownloaded(mushafId, targetFile.absolutePath)
+                onProgress(1f)
                 Result.success(targetFile)
             } catch (e: Exception) {
+                temporaryFile.delete()
                 updateMushafDownloading(mushafId, isDownloading = false, progress = 0f)
                 Result.failure(e)
             }

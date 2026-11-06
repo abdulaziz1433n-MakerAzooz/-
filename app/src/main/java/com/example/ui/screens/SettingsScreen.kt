@@ -1397,17 +1397,23 @@ fun AboutSettingsView() {
         }
 
 
-        // App update checker (GitHub Releases)
+        // App update checker (public latest.json)
         item {
             var updateMessage by remember { mutableStateOf("تحقق من توفر إصدار أحدث من التطبيق") }
-            var latestReleaseUrl by remember { mutableStateOf<String?>(null) }
             var apkDownloadUrl by remember { mutableStateOf<String?>(null) }
             var checking by remember { mutableStateOf(false) }
+            var updateAvailable by remember { mutableStateOf(false) }
+            var latestVersionName by remember { mutableStateOf("") }
+            var releaseNotes by remember { mutableStateOf("") }
             val scope = rememberCoroutineScope()
-            val currentVersion = remember {
-                try {
-                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.1"
-                } catch (_: Exception) { "1.1" }
+
+            val packageInfo = remember { context.packageManager.getPackageInfo(context.packageName, 0) }
+            val installedVersionName = packageInfo.versionName ?: "غير معروف"
+            val installedVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageInfo.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.versionCode.toLong()
             }
 
             Card(
@@ -1422,61 +1428,55 @@ fun AboutSettingsView() {
                         Text("تحديث التطبيق", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("الإصدار المثبت: $currentVersion", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                    Text("الإصدار المثبت: $installedVersionName ($installedVersionCode)", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(updateMessage, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    if (releaseNotes.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("ملاحظات الإصدار: $releaseNotes", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = {
                             checking = true
-                            updateMessage = "جارٍ التحقق من GitHub..."
+                            updateMessage = "جارٍ التحقق من التحديثات..."
+                            apkDownloadUrl = null
+                            updateAvailable = false
                             scope.launch {
                                 val result = withContext(Dispatchers.IO) {
                                     runCatching {
-                                        val connection = (java.net.URL("https://api.github.com/repos/abdulaziz1433n-MakerAzooz/-/releases/latest").openConnection() as java.net.HttpURLConnection)
-                                        connection.connectTimeout = 10000
-                                        connection.readTimeout = 10000
-                                        connection.setRequestProperty("Accept", "application/vnd.github+json")
+                                        val connection = (java.net.URL("https://raw.githubusercontent.com/abdulaziz1433n-MakerAzooz/Quran-PDF-Updates/main/latest.json").openConnection() as java.net.HttpURLConnection)
+                                        connection.connectTimeout = 15000
+                                        connection.readTimeout = 15000
+                                        connection.requestMethod = "GET"
+                                        connection.setRequestProperty("Cache-Control", "no-cache")
                                         try {
-                                            val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-                                            val tag = json.optString("tag_name").removePrefix("v")
-                                            val page = json.optString("html_url")
-                                            val assets = json.optJSONArray("assets")
-                                            var apk: String? = null
-                                            if (assets != null) {
-                                                for (i in 0 until assets.length()) {
-                                                    val asset = assets.getJSONObject(i)
-                                                    if (asset.optString("name").endsWith(".apk", ignoreCase = true)) {
-                                                        apk = asset.optString("browser_download_url")
-                                                        break
-                                                    }
-                                                }
+                                            val responseCode = connection.responseCode
+                                            if (responseCode !in 200..299) {
+                                                throw IllegalStateException("HTTP $responseCode")
                                             }
-                                            Triple(tag, page, apk)
+                                            JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
                                         } finally {
                                             connection.disconnect()
                                         }
                                     }
                                 }
                                 checking = false
-                                result.onSuccess { (tag, page, apk) ->
-                                    latestReleaseUrl = page
-                                    apkDownloadUrl = apk
-                                    val latestParts = tag.split(".").mapNotNull { it.toIntOrNull() }
-                                    val currentParts = currentVersion.removePrefix("v").split(".").mapNotNull { it.toIntOrNull() }
-                                    val newer = (0 until maxOf(latestParts.size, currentParts.size)).firstNotNullOfOrNull { i ->
-                                        val a = latestParts.getOrElse(i) { 0 }
-                                        val b = currentParts.getOrElse(i) { 0 }
-                                        if (a != b) a > b else null
-                                    } ?: false
+                                result.onSuccess { json ->
+                                    val remoteCode = json.optLong("versionCode", -1L)
+                                    latestVersionName = json.optString("versionName", "")
+                                    releaseNotes = json.optString("releaseNotes", "")
+                                    val remoteApk = json.optString("apkUrl", "").takeIf { it.startsWith("https://") }
+                                    apkDownloadUrl = remoteApk
+                                    updateAvailable = remoteCode > installedVersionCode
                                     updateMessage = when {
-                                        tag.isBlank() -> "تعذر قراءة رقم الإصدار من GitHub."
-                                        newer && apk != null -> "يتوفر إصدار جديد: $tag"
-                                        newer -> "يتوفر إصدار $tag، لكن لم يُرفق ملف APK في صفحة الإصدار."
-                                        else -> "تطبيقك محدث. أحدث إصدار منشور: $tag"
+                                        remoteCode < 0L -> "ملف التحديث لا يحتوي على versionCode صحيح."
+                                        updateAvailable && remoteApk != null -> "يتوفر تحديث جديد: $latestVersionName"
+                                        updateAvailable -> "يتوفر إصدار $latestVersionName، لكن رابط APK غير صالح."
+                                        else -> "تطبيقك محدث. أحدث إصدار منشور: $latestVersionName"
                                     }
-                                }.onFailure {
-                                    updateMessage = "تعذر الاتصال بـ GitHub. تحقق من الإنترنت وحاول مجدداً."
+                                }.onFailure { error ->
+                                    updateMessage = "تعذر التحقق من التحديث. تحقق من الإنترنت ثم حاول مجدداً. (${error.message ?: "خطأ اتصال"})"
                                 }
                             }
                         },
@@ -1493,12 +1493,14 @@ fun AboutSettingsView() {
                         }
                         Text(if (checking) "جارٍ التحقق..." else "التحقق من وجود تحديث")
                     }
-                    if (apkDownloadUrl != null) {
+                    if (updateAvailable && apkDownloadUrl != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedButton(
                             onClick = {
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(apkDownloadUrl)))
+                                }.onFailure {
+                                    updateMessage = "تعذر فتح رابط تنزيل التحديث."
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -1506,12 +1508,8 @@ fun AboutSettingsView() {
                         ) {
                             Icon(Icons.Default.Download, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("تنزيل ملف التحديث APK")
+                            Text("تنزيل تحديث $latestVersionName")
                         }
-                    } else if (latestReleaseUrl != null) {
-                        TextButton(onClick = {
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(latestReleaseUrl))) }
-                        }) { Text("فتح صفحة الإصدار على GitHub") }
                     }
                 }
             }

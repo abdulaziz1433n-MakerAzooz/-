@@ -42,7 +42,7 @@ fun ProfileScreen(
     val context = LocalContext.current
     val currentUser by viewModel.currentUser.collectAsState()
     val effectiveProfile by viewModel.effectiveProfile.collectAsState()
-    val isAuthLoading by viewModel.isAuthLoading.collectAsState()
+    val isAuthLoading = false
     val settings by viewModel.settings.collectAsState()
 
     val emailInput by viewModel.emailInput.collectAsState()
@@ -51,7 +51,7 @@ fun ProfileScreen(
     val generatedOtp by viewModel.generatedOtp.collectAsState()
     val isOtpSent by viewModel.isOtpSent.collectAsState()
 
-    var authMethodTab by remember { mutableIntStateOf(0) } // 0: Google, 1: Email & Password
+    var authMethodTab by remember { mutableIntStateOf(1) } // Email & Password only
     var passwordVisible by remember { mutableStateOf(false) }
     var showGoalDialog by remember { mutableStateOf(false) }
 
@@ -91,57 +91,6 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             if (!isLoggedIn) {
-                // Auth Choice: Tab Segment for Google vs Email & OTP
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(18.dp)
-                        ) {
-                            Text(
-                                text = "تسجيل الدخول وإنشاء البروفايل",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "اختر الطريقة المفضلة لتسجيل الدخول ومزامنة وردك القرآني",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            TabRow(
-                                selectedTabIndex = authMethodTab,
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                contentColor = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.clip(RoundedCornerShape(12.dp))
-                            ) {
-                                Tab(
-                                    selected = authMethodTab == 0,
-                                    onClick = { authMethodTab = 0 },
-                                    text = { Text("حساب Google", fontWeight = FontWeight.Bold) },
-                                    icon = { Icon(Icons.Default.AccountBox, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                                )
-                                Tab(
-                                    selected = authMethodTab == 1,
-                                    onClick = { authMethodTab = 1 },
-                                    text = { Text("البريد ورمز التحقق", fontWeight = FontWeight.Bold) },
-                                    icon = { Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                                )
-                            }
-                        }
-                    }
-                }
-
                 if (authMethodTab == 0) {
                     // Method 1: Google Sign-In Card
                     item {
@@ -202,7 +151,7 @@ fun ProfileScreen(
                                     Button(
                                         onClick = {
                                             (context as? Activity)?.let { act ->
-                                                viewModel.signInWithGoogle(act)
+                                                Unit
                                             }
                                         },
                                         enabled = !isAuthLoading,

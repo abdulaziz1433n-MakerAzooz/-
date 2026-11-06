@@ -12,7 +12,12 @@
           "package_name": "com.aistudio.quranpdf.reader"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "341852430445-40mn65olriqilgkh73pfdepttp80l0pp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBktaN_agU5kGBqZsuJ6yp5kPZ3Hf1VEmQ"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "341852430445-40mn65olriqilgkh73pfdepttp80l0pp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

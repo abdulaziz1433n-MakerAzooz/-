@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import android.app.Activity
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -49,7 +48,6 @@ fun AuthGatewayScreen(
     val otpInput by viewModel.otpInput.collectAsState()
     val generatedOtp by viewModel.generatedOtp.collectAsState()
     val isOtpSent by viewModel.isOtpSent.collectAsState()
-    val isAuthLoading by viewModel.isAuthLoading.collectAsState()
 
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
@@ -187,77 +185,8 @@ fun AuthGatewayScreen(
                 }
             }
 
-            // 3. One-Tap Google Sign-In Card
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Button(
-                            onClick = { (context as? Activity)?.let { viewModel.signInWithGoogle(it) } },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp)
-                                .testTag("gateway_google_signin_button"),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp)
-                        ) {
-                            if (isAuthLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(22.dp),
-                                    strokeWidth = 2.5.dp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.AccountCircle,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = if (isSignUpMode) "إنشاء حساب فوري عبر Google" else "تسجيل الدخول السريع عبر Google",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            HorizontalDivider(modifier = Modifier.weight(1f))
-                            Text(
-                                text = "أو بالبريد الإلكتروني",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            )
-                            HorizontalDivider(modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
-
-            // 4. Email Auth Form Card (Sign Up or Login with 6-digit OTP verification)
+            // 3. Email Auth Form Card (Sign Up or Login with 6-digit OTP verification)
+            // 3. Email Auth Form Card (Sign Up or Login with 6-digit OTP verification)
             item {
                 Card(
                     modifier = Modifier

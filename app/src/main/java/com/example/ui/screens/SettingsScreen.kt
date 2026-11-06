@@ -1,6 +1,12 @@
 package com.example.ui.screens
 
 import android.content.Intent
+import org.json.JSONObject
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.rememberCoroutineScope
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -497,8 +503,7 @@ fun NotificationSettingsView(viewModel: QuranViewModel) {
                             Triple("بعد الفجر", 5, 30),
                             Triple("وقت الضحى", 9, 0),
                             Triple("بعد العصر", 16, 30),
-                            Triple("بعد العشاء", 21, 0)
-                        )
+                            Triple("بعد العشاء", 21, 0)                        )
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -997,8 +1002,7 @@ fun ScreenTimeSettingsView(viewModel: QuranViewModel) {
                         }
                         Switch(
                             checked = settings.bedtimeReminderEnabled,
-                            onCheckedChange = { viewModel.toggleBedtimeReminder(it) },
-                            modifier = Modifier.testTag("bedtime_switch")
+                            onCheckedChange = { viewModel.toggleBedtimeReminder(it) },                            modifier = Modifier.testTag("bedtime_switch")
                         )
                     }
 
@@ -1321,6 +1325,10 @@ fun ScreenTimeSettingsView(viewModel: QuranViewModel) {
 // -------------------------------------------------------------
 @Composable
 fun AboutSettingsView() {
+    val currentVersion = remember {
+        try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.1" }
+        catch (_: Exception) { "1.1" }
+    }
     val context = LocalContext.current
 
     LazyColumn(
@@ -1368,7 +1376,7 @@ fun AboutSettingsView() {
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "الإصدار 1.0.0 • وقف لوجه الله تعالى",
+                        text = "الإصدار $currentVersion • وقف لوجه الله تعالى",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -1384,6 +1392,127 @@ fun AboutSettingsView() {
                         lineHeight = 20.sp,
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
+                }
+            }
+        }
+
+
+        // App update checker (GitHub Releases)
+        item {
+            var updateMessage by remember { mutableStateOf("تحقق من توفر إصدار أحدث من التطبيق") }
+            var latestReleaseUrl by remember { mutableStateOf<String?>(null) }
+            var apkDownloadUrl by remember { mutableStateOf<String?>(null) }
+            var checking by remember { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
+            val currentVersion = remember {
+                try {
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.1"
+                } catch (_: Exception) { "1.1" }
+            }
+
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("تحديث التطبيق", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("الإصدار المثبت: $currentVersion", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(updateMessage, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            checking = true
+                            updateMessage = "جارٍ التحقق من GitHub..."
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        val connection = (java.net.URL("https://api.github.com/repos/abdulaziz1433n-MakerAzooz/-/releases/latest").openConnection() as java.net.HttpURLConnection)
+                                        connection.connectTimeout = 10000
+                                        connection.readTimeout = 10000
+                                        connection.setRequestProperty("Accept", "application/vnd.github+json")
+                                        try {
+                                            val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                                            val tag = json.optString("tag_name").removePrefix("v")
+                                            val page = json.optString("html_url")
+                                            val assets = json.optJSONArray("assets")
+                                            var apk: String? = null
+                                            if (assets != null) {
+                                                for (i in 0 until assets.length()) {
+                                                    val asset = assets.getJSONObject(i)
+                                                    if (asset.optString("name").endsWith(".apk", ignoreCase = true)) {
+                                                        apk = asset.optString("browser_download_url")
+                                                        break
+                                                    }
+                                                }
+                                            }
+                                            Triple(tag, page, apk)
+                                        } finally {
+                                            connection.disconnect()
+                                        }
+                                    }
+                                }
+                                checking = false
+                                result.onSuccess { (tag, page, apk) ->
+                                    latestReleaseUrl = page
+                                    apkDownloadUrl = apk
+                                    val latestParts = tag.split(".").mapNotNull { it.toIntOrNull() }
+                                    val currentParts = currentVersion.removePrefix("v").split(".").mapNotNull { it.toIntOrNull() }
+                                    val newer = (0 until maxOf(latestParts.size, currentParts.size)).firstNotNullOfOrNull { i ->
+                                        val a = latestParts.getOrElse(i) { 0 }
+                                        val b = currentParts.getOrElse(i) { 0 }
+                                        if (a != b) a > b else null
+                                    } ?: false
+                                    updateMessage = when {
+                                        tag.isBlank() -> "تعذر قراءة رقم الإصدار من GitHub."
+                                        newer && apk != null -> "يتوفر إصدار جديد: $tag"
+                                        newer -> "يتوفر إصدار $tag، لكن لم يُرفق ملف APK في صفحة الإصدار."
+                                        else -> "تطبيقك محدث. أحدث إصدار منشور: $tag"
+                                    }
+                                }.onFailure {
+                                    updateMessage = "تعذر الاتصال بـ GitHub. تحقق من الإنترنت وحاول مجدداً."
+                                }
+                            }
+                        },
+                        enabled = !checking,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (checking) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        } else {
+                            Icon(Icons.Default.Refresh, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (checking) "جارٍ التحقق..." else "التحقق من وجود تحديث")
+                    }
+                    if (apkDownloadUrl != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(apkDownloadUrl)))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("تنزيل ملف التحديث APK")
+                        }
+                    } else if (latestReleaseUrl != null) {
+                        TextButton(onClick = {
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(latestReleaseUrl))) }
+                        }) { Text("فتح صفحة الإصدار على GitHub") }
+                    }
                 }
             }
         }

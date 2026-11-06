@@ -1,5 +1,6 @@
 package com.example.ui.viewmodel
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.net.Uri
@@ -47,7 +48,7 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
     val settings: StateFlow<AppSettings> = repository.settings
     val currentUser: StateFlow<FirebaseUser?> = authManager.currentUser
 
-    // Cloud User Profile from Google Sign-In
+    // Cloud User Profile from Firebase authentication
     val userProfile: StateFlow<UserProfile?> = currentUser.flatMapLatest { user ->
         if (user != null) {
             firestoreRepository.observeUserProfile(user.uid)
@@ -111,7 +112,7 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
     init {
         QuranNotificationManager.createNotificationChannel(application)
 
-        // When Google user signs in, initialize or sync profile
+        // When a Firebase user is authenticated, initialize or sync profile
         viewModelScope.launch {
             currentUser.collectLatest { user ->
                 if (user != null) {

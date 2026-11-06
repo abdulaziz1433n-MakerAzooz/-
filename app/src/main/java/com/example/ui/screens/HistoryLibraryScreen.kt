@@ -111,7 +111,8 @@ fun HistoryLibraryScreen(
             // Hero Last Read Card
             if (lastReadMushaf != null) {
                 item {
-                    val progressPercent = ((lastReadMushaf.lastReadPage.toFloat() / lastReadMushaf.totalPages.toFloat()) * 100).toInt()
+                    val totalSafe = lastReadMushaf.totalPages.coerceAtLeast(1)
+                    val progressPercent = ((lastReadMushaf.lastReadPage.toFloat() / totalSafe.toFloat()) * 100).toInt().coerceIn(0, 100)
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -208,7 +209,7 @@ fun HistoryLibraryScreen(
                                     }
                                     Spacer(modifier = Modifier.height(6.dp))
                                     LinearProgressIndicator(
-                                        progress = { lastReadMushaf.lastReadPage.toFloat() / lastReadMushaf.totalPages },
+                                        progress = { (lastReadMushaf.lastReadPage.toFloat() / lastReadMushaf.totalPages.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f) },
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .height(8.dp)

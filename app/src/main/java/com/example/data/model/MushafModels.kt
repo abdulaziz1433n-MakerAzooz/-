@@ -37,7 +37,17 @@ data class AppSettings(
     val streakDays: Int = 3,
     val totalMinutesRead: Int = 85,
     val totalPagesRead: Int = 42,
-    val lastActiveDate: String = ""
+    val lastActiveDate: String = "",
+    // Digital Wellbeing and Eye Care
+    val eyeBreakReminderEnabled: Boolean = true,
+    val eyeBreakIntervalMinutes: Int = 20, // 20-20-20 rule
+    val bedtimeReminderEnabled: Boolean = true,
+    val bedtimeHour: Int = 22,
+    val bedtimeMinute: Int = 30,
+    val goalAchievedNotificationEnabled: Boolean = true,
+    val readingLimitEnabled: Boolean = false,
+    val readingLimitMinutes: Int = 60,
+    val todaySessionsCount: Int = 3
 )
 
 data class QuranBookmark(

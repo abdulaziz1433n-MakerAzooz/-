@@ -25,9 +25,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.screens.AuthGatewayScreen
 import com.example.ui.screens.HistoryLibraryScreen
 import com.example.ui.screens.MushafCatalogScreen
 import com.example.ui.screens.QuranPdfReaderScreen
+import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.QuranPdfTheme
 import com.example.ui.viewmodel.AppTab
@@ -45,6 +47,7 @@ class MainActivity : ComponentActivity() {
             val settings by viewModel.settings.collectAsState()
             val currentTab by viewModel.currentTab.collectAsState()
             val readingMushaf by viewModel.currentReadingMushaf.collectAsState()
+            val effectiveProfile by viewModel.effectiveProfile.collectAsState()
 
             // Dynamic Custom Theme and RTL Arabic Layout Direction
             QuranPdfTheme(
@@ -56,7 +59,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        if (currentTab == AppTab.READER && readingMushaf != null) {
+                        if (effectiveProfile == null) {
+                            // Mandatory Authentication Gateway (Login & Sign Up required before using the app)
+                            AuthGatewayScreen(viewModel = viewModel)
+                        } else if (currentTab == AppTab.READER && readingMushaf != null) {
                             // Fullscreen Immersive Quran Reader
                             QuranPdfReaderScreen(
                                 mushaf = readingMushaf!!,
@@ -110,6 +116,25 @@ class MainActivity : ComponentActivity() {
                                         )
 
                                         NavigationBarItem(
+                                            selected = currentTab == AppTab.PROFILE,
+                                            onClick = { viewModel.selectTab(AppTab.PROFILE) },
+                                            icon = {
+                                                Icon(
+                                                    imageVector = if (currentTab == AppTab.PROFILE) Icons.Filled.AccountCircle else Icons.Outlined.AccountCircle,
+                                                    contentDescription = "البروفايل"
+                                                )
+                                            },
+                                            label = {
+                                                Text(
+                                                    text = "البروفايل",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (currentTab == AppTab.PROFILE) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            modifier = Modifier.testTag("nav_profile_tab")
+                                        )
+
+                                        NavigationBarItem(
                                             selected = currentTab == AppTab.SETTINGS,
                                             onClick = { viewModel.selectTab(AppTab.SETTINGS) },
                                             icon = {
@@ -139,6 +164,7 @@ class MainActivity : ComponentActivity() {
                                     when (tab) {
                                         AppTab.MUSHAFS -> MushafCatalogScreen(viewModel = viewModel)
                                         AppTab.HISTORY -> HistoryLibraryScreen(viewModel = viewModel)
+                                        AppTab.PROFILE -> ProfileScreen(viewModel = viewModel)
                                         AppTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
                                         AppTab.READER -> {
                                             if (readingMushaf != null) {

@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string &&
+             data.userId == request.auth.uid &&
+             data.displayName is string &&
+             data.email is string &&
+             data.photoUrl is string &&
+             data.dailyReadingGoalMinutes is number &&
+             data.totalMinutesRead is number &&
+             data.totalPagesRead is number;
+    }
+
+    function isValidBookmark(data) {
+      return data.userId is string &&
+             data.userId == request.auth.uid &&
+             data.mushafId is string &&
+             data.pageNumber is number &&
+             data.pageNumber >= 1;
+    }
+
+    function isValidReadingLog(data) {
+      return data.userId is string &&
+             data.userId == request.auth.uid &&
+             data.mushafId is string &&
+             data.pageNumber is number &&
+             data.durationMinutes is number;
+    }
+
+    // User profile document
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidUserProfile(request.resource.data);
+      allow delete: if isOwner(userId);
+
+      // Bookmarks subcollection
+      match /bookmarks/{bookmarkId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidBookmark(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      // Reading history subcollection
+      match /reading_history/{historyId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidReadingLog(request.resource.data);
+        allow update, delete: if isOwner(userId);
+      }
+    }
+  }
+}

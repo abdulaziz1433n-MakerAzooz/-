@@ -2,13 +2,16 @@ package com.example.ui.screens
 
 import android.app.Activity
 import android.graphics.Bitmap
-import android.graphics.ColorMatrix
-import android.graphics.ColorMatrixColorFilter
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,7 +19,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -30,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -38,7 +42,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.MushafItem
@@ -63,12 +66,13 @@ fun QuranPdfReaderScreen(
     var showControls by remember { mutableStateOf(true) }
     var showJumpDialog by remember { mutableStateOf(false) }
     var showPaperModeDialog by remember { mutableStateOf(false) }
+    var showIndexDialog by remember { mutableStateOf(false) }
 
     // Zoom and pan state
     var scale by remember(currentPage) { mutableFloatStateOf(1f) }
     var offset by remember(currentPage) { mutableStateOf(Offset.Zero) }
 
-    // Keep screen on effect
+    // Screen awake lock
     DisposableEffect(settings.keepScreenOn) {
         val window = (context as? Activity)?.window
         if (settings.keepScreenOn) {
@@ -79,51 +83,70 @@ fun QuranPdfReaderScreen(
         }
     }
 
-    // Intercept hardware/system back button
+    // Intercept back button to save progress
     BackHandler {
         viewModel.closeReader()
+    }
+
+    // Persistent PdfRenderer instance for high-speed page turning
+    var pdfRenderer by remember(mushaf.localPath) { mutableStateOf<PdfRenderer?>(null) }
+    var pfd by remember(mushaf.localPath) { mutableStateOf<ParcelFileDescriptor?>(null) }
+    var totalPagesCount by remember(mushaf.localPath) { mutableIntStateOf(mushaf.totalPages) }
+
+    DisposableEffect(mushaf.localPath) {
+        val path = mushaf.localPath
+        if (path != null) {
+            val file = File(path)
+            if (file.exists()) {
+                try {
+                    val descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                    val renderer = PdfRenderer(descriptor)
+                    pfd = descriptor
+                    pdfRenderer = renderer
+                    totalPagesCount = renderer.pageCount
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        onDispose {
+            try {
+                pdfRenderer?.close()
+                pfd?.close()
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
     }
 
     // Rendered Bitmap state
     var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isLoadingPage by remember { mutableStateOf(true) }
 
-    // Render current PDF page
-    LaunchedEffect(mushaf.localPath, currentPage) {
+    // Render current page when renderer or page changes
+    LaunchedEffect(pdfRenderer, currentPage) {
+        val renderer = pdfRenderer ?: return@LaunchedEffect
         isLoadingPage = true
         withContext(Dispatchers.IO) {
-            val path = mushaf.localPath
-            if (path != null) {
-                val file = File(path)
-                if (file.exists()) {
-                    try {
-                        val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-                        val renderer = PdfRenderer(pfd)
-                        val pageIdx = (currentPage - 1).coerceIn(0, renderer.pageCount - 1)
-                        val page = renderer.openPage(pageIdx)
+            try {
+                val pageIdx = (currentPage - 1).coerceIn(0, renderer.pageCount - 1)
+                val page = renderer.openPage(pageIdx)
 
-                        // Render at crisp 2x resolution
-                        val renderWidth = page.width * 2
-                        val renderHeight = page.height * 2
-                        val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
+                val renderWidth = page.width * 2
+                val renderHeight = page.height * 2
+                val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
+                bitmap.eraseColor(android.graphics.Color.WHITE)
 
-                        // Clear to white or paper color
-                        bitmap.eraseColor(android.graphics.Color.WHITE)
-                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                page.close()
 
-                        page.close()
-                        renderer.close()
-                        pfd.close()
-
-                        withContext(Dispatchers.Main) {
-                            pageBitmap = bitmap
-                            isLoadingPage = false
-                        }
-                    } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            isLoadingPage = false
-                        }
-                    }
+                withContext(Dispatchers.Main) {
+                    pageBitmap = bitmap
+                    isLoadingPage = false
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isLoadingPage = false
                 }
             }
         }
@@ -131,7 +154,7 @@ fun QuranPdfReaderScreen(
 
     val isBookmarked = mushaf.bookmarks.contains(currentPage)
 
-    // Calculate background and tint colors based on ReadingPaperMode
+    // Calculate background and paper colors
     val paperBgColor = when (settings.readingPaperMode) {
         ReadingPaperMode.NORMAL -> Color(0xFFF9F9F9)
         ReadingPaperMode.SEPIA -> Color(0xFFF6F0DF)
@@ -141,7 +164,37 @@ fun QuranPdfReaderScreen(
     val paperFrameColor = when (settings.readingPaperMode) {
         ReadingPaperMode.NORMAL -> Color(0xFFE2E8F0)
         ReadingPaperMode.SEPIA -> Color(0xFFD4AF37)
-        ReadingPaperMode.NIGHT -> Color(0xFF262626)
+        ReadingPaperMode.NIGHT -> Color(0xFF2B2B2B)
+    }
+
+    // Color filter for Sepia and true Night mode (inversion)
+    val pageColorFilter: ColorFilter? = remember(settings.readingPaperMode) {
+        when (settings.readingPaperMode) {
+            ReadingPaperMode.NORMAL -> null
+            ReadingPaperMode.SEPIA -> {
+                val sepiaMatrix = ColorMatrix(
+                    floatArrayOf(
+                        0.95f, 0.05f, 0.0f,  0f, 15f,
+                        0.0f,  0.90f, 0.05f, 0f, 10f,
+                        0.0f,  0.0f,  0.80f, 0f, 0f,
+                        0f,    0f,    0f,    1f, 0f
+                    )
+                )
+                ColorFilter.colorMatrix(sepiaMatrix)
+            }
+            ReadingPaperMode.NIGHT -> {
+                // Invert colors so white page becomes pitch black and black text becomes white
+                val invertMatrix = ColorMatrix(
+                    floatArrayOf(
+                        -1f,  0f,  0f, 0f, 255f,
+                         0f, -1f,  0f, 0f, 255f,
+                         0f,  0f, -1f, 0f, 255f,
+                         0f,  0f,  0f, 1f,   0f
+                    )
+                )
+                ColorFilter.colorMatrix(invertMatrix)
+            }
+        }
     }
 
     Box(
@@ -149,11 +202,11 @@ fun QuranPdfReaderScreen(
             .fillMaxSize()
             .background(paperBgColor)
     ) {
-        // Main PDF Page Display with Pinch-to-Zoom & Pan
+        // Main Quran Page with Gesture Detection
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
+                .pointerInput(currentPage) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         scale = (scale * zoom).coerceIn(1f, 4f)
                         if (scale > 1f) {
@@ -168,14 +221,26 @@ fun QuranPdfReaderScreen(
                         }
                     }
                 }
-                .pointerInput(Unit) {
+                .pointerInput(currentPage) {
                     detectTapGestures(
                         onDoubleTap = {
-                            scale = if (scale > 1.2f) 1f else 2f
+                            scale = if (scale > 1.2f) 1f else 2.2f
                             offset = Offset.Zero
                         },
-                        onTap = {
-                            showControls = !showControls
+                        onTap = { tapOffset ->
+                            if (scale <= 1.1f) {
+                                val screenWidth = size.width
+                                when {
+                                    // Right 25% tapped -> Previous page (RTL Quran navigation)
+                                    tapOffset.x > screenWidth * 0.75f -> viewModel.prevPage()
+                                    // Left 25% tapped -> Next page (RTL Quran navigation)
+                                    tapOffset.x < screenWidth * 0.25f -> viewModel.nextPage()
+                                    // Center tapped -> Toggle controls
+                                    else -> showControls = !showControls
+                                }
+                            } else {
+                                showControls = !showControls
+                            }
                         }
                     )
                 },
@@ -195,7 +260,7 @@ fun QuranPdfReaderScreen(
                 Card(
                     shape = RoundedCornerShape(8.dp),
                     colors = CardDefaults.cardColors(containerColor = paperBgColor),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(if (showControls) 16.dp else 4.dp)
@@ -211,6 +276,7 @@ fun QuranPdfReaderScreen(
                         bitmap = pageBitmap!!.asImageBitmap(),
                         contentDescription = "صفحة المصحف $currentPage",
                         contentScale = ContentScale.Fit,
+                        colorFilter = pageColorFilter,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(8.dp))
@@ -228,6 +294,8 @@ fun QuranPdfReaderScreen(
         // Top Controls Bar
         AnimatedVisibility(
             visible = showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopCenter)
         ) {
             Surface(
@@ -261,13 +329,13 @@ fun QuranPdfReaderScreen(
                             maxLines = 1
                         )
                         Text(
-                            text = "صفحة $currentPage من ${mushaf.totalPages}",
+                            text = "صفحة $currentPage من $totalPagesCount",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
 
-                    // Reading Timer pill
+                    // Reading session timer pill
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.primaryContainer,
@@ -295,7 +363,7 @@ fun QuranPdfReaderScreen(
                         }
                     }
 
-                    // Paper tint toggle
+                    // Paper Mode Dialog Button
                     IconButton(onClick = { showPaperModeDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.Palette,
@@ -304,7 +372,19 @@ fun QuranPdfReaderScreen(
                         )
                     }
 
-                    // Bookmark toggle
+                    // Surah & Juz Index Button
+                    IconButton(
+                        onClick = { showIndexDialog = true },
+                        modifier = Modifier.testTag("surah_index_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FormatListNumbered,
+                            contentDescription = "فهرس السور والأجزاء",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // Bookmark Button
                     IconButton(
                         onClick = { viewModel.toggleBookmarkForCurrentPage() },
                         modifier = Modifier.testTag("bookmark_toggle_button")
@@ -322,6 +402,8 @@ fun QuranPdfReaderScreen(
         // Bottom Controls Bar
         AnimatedVisibility(
             visible = showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             Surface(
@@ -347,21 +429,21 @@ fun QuranPdfReaderScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Slider(
-                            value = currentPage.toFloat(),
+                            value = currentPage.toFloat().coerceIn(1f, totalPagesCount.toFloat()),
                             onValueChange = { viewModel.jumpToPage(it.toInt()) },
-                            valueRange = 1f..mushaf.totalPages.toFloat(),
+                            valueRange = 1f..totalPagesCount.coerceAtLeast(1).toFloat(),
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(horizontal = 8.dp)
                         )
                         Text(
-                            text = "${mushaf.totalPages}",
+                            text = "$totalPagesCount",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    // Navigation buttons row
+                    // Navigation buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -380,7 +462,7 @@ fun QuranPdfReaderScreen(
                             Text("السابقة")
                         }
 
-                        // Jump to page text button
+                        // Jump to page button
                         OutlinedButton(
                             onClick = { showJumpDialog = true },
                             shape = RoundedCornerShape(10.dp)
@@ -399,7 +481,7 @@ fun QuranPdfReaderScreen(
 
                         Button(
                             onClick = { viewModel.nextPage() },
-                            enabled = currentPage < mushaf.totalPages,
+                            enabled = currentPage < totalPagesCount,
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("التالية")
@@ -409,6 +491,68 @@ fun QuranPdfReaderScreen(
                                 contentDescription = null
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // Digital Wellbeing: Gentle In-Reader Eye Care Banner
+        var dismissedBreakPeriod by remember { mutableLongStateOf(-1L) }
+        val breakIntervalSec = (settings.eyeBreakIntervalMinutes * 60).toLong()
+        val currentBreakPeriod = if (breakIntervalSec > 0) sessionSeconds / breakIntervalSec else 0L
+        val showEyeBreakBanner = settings.eyeBreakReminderEnabled &&
+                sessionSeconds >= breakIntervalSec &&
+                breakIntervalSec > 0 &&
+                (sessionSeconds % breakIntervalSec) < 30 &&
+                dismissedBreakPeriod != currentBreakPeriod
+
+        AnimatedVisibility(
+            visible = showEyeBreakBanner,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it }),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 64.dp, start = 16.dp, end = 16.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shadowElevation = 6.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Visibility,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "استراحة لصحة العينين 👀",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "قاعدة 20-20-20: أغمض عينيك وانظر لبعيد لمدة 20 ثانية لحماية نظرك",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                            lineHeight = 14.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    FilledTonalButton(
+                        onClick = { dismissedBreakPeriod = currentBreakPeriod },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("تم", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -430,7 +574,7 @@ fun QuranPdfReaderScreen(
             text = {
                 Column {
                     Text(
-                        text = "أدخل رقم الصفحة (من 1 إلى ${mushaf.totalPages}):",
+                        text = "أدخل رقم الصفحة (من 1 إلى $totalPagesCount):",
                         fontSize = 13.sp
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -448,7 +592,7 @@ fun QuranPdfReaderScreen(
                     onClick = {
                         val target = inputPage.toIntOrNull()
                         if (target != null) {
-                            viewModel.jumpToPage(target)
+                            viewModel.jumpToPage(target.coerceIn(1, totalPagesCount))
                         }
                         showJumpDialog = false
                     }
@@ -522,4 +666,183 @@ fun QuranPdfReaderScreen(
             }
         )
     }
+
+    // Complete 114 Surahs & 30 Juzs Index Dialog
+    if (showIndexDialog) {
+        SurahJuzIndexDialog(
+            maxPage = totalPagesCount,
+            onSelectPage = { page ->
+                viewModel.jumpToPage(page)
+                showIndexDialog = false
+            },
+            onDismiss = { showIndexDialog = false }
+        )
+    }
+}
+
+@Composable
+fun SurahJuzIndexDialog(
+    maxPage: Int,
+    onSelectPage: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(
+                    text = "فهرس القرآن الكريم الشريف",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                TabRow(selectedTabIndex = selectedTab) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("السور (١١٤)") }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("الأجزاء (٣٠)") }
+                    )
+                }
+            }
+        },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 420.dp)) {
+                if (selectedTab == 0) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("ابحث عن سورة...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+
+                    val filteredSurahs = remember(searchQuery) {
+                        if (searchQuery.isBlank()) {
+                            com.example.data.model.QuranIndexData.surahs
+                        } else {
+                            com.example.data.model.QuranIndexData.surahs.filter {
+                                it.name.contains(searchQuery.trim())
+                            }
+                        }
+                    }
+
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(filteredSurahs.size) { idx ->
+                            val surah = filteredSurahs[idx]
+                            val clampedPage = surah.startPage.coerceIn(1, maxPage)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSelectPage(clampedPage) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        modifier = Modifier.size(30.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = "${surah.number}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "سورة ${surah.name}",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            text = "${surah.type} • ${surah.versesCount} آية",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = "ص ${surah.startPage}",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(com.example.data.model.QuranIndexData.juzs.size) { idx ->
+                            val juz = com.example.data.model.QuranIndexData.juzs[idx]
+                            val clampedPage = juz.startPage.coerceIn(1, maxPage)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSelectPage(clampedPage) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = juz.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    ) {
+                                        Text(
+                                            text = "ص ${juz.startPage}",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("إغلاق")
+            }
+        }
+    )
 }

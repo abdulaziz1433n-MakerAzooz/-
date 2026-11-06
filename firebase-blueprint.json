@@ -1,0 +1,49 @@
+{
+  "entities": {
+    "UserProfile": {
+      "collection": "users",
+      "path": "users/{userId}",
+      "fields": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "khatmahGoal": { "type": "string" },
+        "dailyReadingGoalMinutes": { "type": "number" },
+        "currentStreakDays": { "type": "number" },
+        "totalMinutesRead": { "type": "number" },
+        "totalPagesRead": { "type": "number" },
+        "lastReadMushafId": { "type": "string" },
+        "lastReadMushafTitle": { "type": "string" },
+        "lastReadPage": { "type": "number" },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      }
+    },
+    "UserBookmark": {
+      "collection": "bookmarks",
+      "path": "users/{userId}/bookmarks/{bookmarkId}",
+      "fields": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "mushafId": { "type": "string" },
+        "mushafTitle": { "type": "string" },
+        "pageNumber": { "type": "number" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      }
+    },
+    "ReadingHistoryLog": {
+      "collection": "reading_history",
+      "path": "users/{userId}/reading_history/{historyId}",
+      "fields": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "mushafId": { "type": "string" },
+        "pageNumber": { "type": "number" },
+        "durationMinutes": { "type": "number" },
+        "timestamp": { "type": "timestamp" }
+      }
+    }
+  }
+}

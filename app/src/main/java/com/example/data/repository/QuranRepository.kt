@@ -56,9 +56,9 @@ class QuranRepository(private val context: Context) {
                 id = "mushaf_starter_light",
                 title = "مصحف النور الميسر (مدمج)",
                 riwayah = "حفص عن عاصم - عثماني",
-                description = "مصحف مدمج فوري عالي الوضوح يضم السور المباركة: الفاتحة، البقرة، الكهف، يس، الملك، والمعوذات مع دعاء الختم.",
-                totalPages = 11,
-                fileSizeMb = 1.2,
+                description = "مصحف مدمج فوري عالي الوضوح يضم 20 صفحة مباركة: الفاتحة، البقرة، الكهف، يس، الرحمن، الواقعة، الملك، المعوذات، ودعاء الختم.",
+                totalPages = 20,
+                fileSizeMb = 1.6,
                 isDownloaded = true,
                 localPath = starterFile.absolutePath,
                 isStarter = true,
@@ -243,13 +243,26 @@ class QuranRepository(private val context: Context) {
     }
 
     private fun updateMushafDownloaded(mushafId: String, path: String) {
+        var pageCount = 0
+        try {
+            val file = File(path)
+            val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            val renderer = PdfRenderer(pfd)
+            pageCount = renderer.pageCount
+            renderer.close()
+            pfd.close()
+        } catch (e: Exception) {
+            // Ignore
+        }
+
         _mushafs.value = _mushafs.value.map {
             if (it.id == mushafId) {
                 it.copy(
                     isDownloaded = true,
                     isDownloading = false,
                     downloadProgress = 1f,
-                    localPath = path
+                    localPath = path,
+                    totalPages = if (pageCount > 0) pageCount else it.totalPages
                 )
             } else it
         }
@@ -398,6 +411,15 @@ class QuranRepository(private val context: Context) {
             .putInt("pref_total_minutes", newSettings.totalMinutesRead)
             .putInt("pref_total_pages", newSettings.totalPagesRead)
             .putString("pref_last_date", newSettings.lastActiveDate)
+            .putBoolean("pref_eye_break_enabled", newSettings.eyeBreakReminderEnabled)
+            .putInt("pref_eye_break_interval", newSettings.eyeBreakIntervalMinutes)
+            .putBoolean("pref_bedtime_enabled", newSettings.bedtimeReminderEnabled)
+            .putInt("pref_bedtime_hour", newSettings.bedtimeHour)
+            .putInt("pref_bedtime_minute", newSettings.bedtimeMinute)
+            .putBoolean("pref_goal_achieved_notif", newSettings.goalAchievedNotificationEnabled)
+            .putBoolean("pref_reading_limit_enabled", newSettings.readingLimitEnabled)
+            .putInt("pref_reading_limit_mins", newSettings.readingLimitMinutes)
+            .putInt("pref_today_sessions", newSettings.todaySessionsCount)
             .apply()
     }
 
@@ -419,7 +441,16 @@ class QuranRepository(private val context: Context) {
             streakDays = prefs.getInt("pref_streak_days", 4),
             totalMinutesRead = prefs.getInt("pref_total_minutes", 95),
             totalPagesRead = prefs.getInt("pref_total_pages", 48),
-            lastActiveDate = prefs.getString("pref_last_date", "") ?: ""
+            lastActiveDate = prefs.getString("pref_last_date", "") ?: "",
+            eyeBreakReminderEnabled = prefs.getBoolean("pref_eye_break_enabled", true),
+            eyeBreakIntervalMinutes = prefs.getInt("pref_eye_break_interval", 20),
+            bedtimeReminderEnabled = prefs.getBoolean("pref_bedtime_enabled", true),
+            bedtimeHour = prefs.getInt("pref_bedtime_hour", 22),
+            bedtimeMinute = prefs.getInt("pref_bedtime_minute", 30),
+            goalAchievedNotificationEnabled = prefs.getBoolean("pref_goal_achieved_notif", true),
+            readingLimitEnabled = prefs.getBoolean("pref_reading_limit_enabled", false),
+            readingLimitMinutes = prefs.getInt("pref_reading_limit_mins", 60),
+            todaySessionsCount = prefs.getInt("pref_today_sessions", 3)
         )
     }
 

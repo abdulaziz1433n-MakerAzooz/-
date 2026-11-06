@@ -1,6 +1,5 @@
 package com.example.ui.viewmodel
 
-import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.net.Uri
@@ -106,9 +105,6 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _sessionDurationSeconds = MutableStateFlow(0L)
     val sessionDurationSeconds: StateFlow<Long> = _sessionDurationSeconds.asStateFlow()
-
-    private val _isAuthLoading = MutableStateFlow(false)
-    val isAuthLoading: StateFlow<Boolean> = _isAuthLoading.asStateFlow()
 
     private var timerJob: Job? = null
 
@@ -281,25 +277,6 @@ class QuranViewModel(application: Application) : AndroidViewModel(application) {
         _isOtpSent.value = false
         _otpInput.value = ""
         _generatedOtp.value = null
-    }
-
-    fun signInWithGoogle(activity: Activity) {
-        _isAuthLoading.value = true
-        authManager.signInWithGoogle(
-            activity = activity,
-            scope = viewModelScope,
-            onSuccess = { user ->
-                _isAuthLoading.value = false
-                Toast.makeText(getApplication(), "مرحباً بك ${user.displayName ?: ""} في مصحف النور 📖", Toast.LENGTH_SHORT).show()
-            },
-            onError = { error ->
-                _isAuthLoading.value = false
-                Toast.makeText(getApplication(), error, Toast.LENGTH_LONG).show()
-            },
-            onCancelled = {
-                _isAuthLoading.value = false
-            }
-        )
     }
 
     fun signOut(activity: Activity? = null) {

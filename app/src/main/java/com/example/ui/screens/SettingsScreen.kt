@@ -1325,11 +1325,11 @@ fun ScreenTimeSettingsView(viewModel: QuranViewModel) {
 // -------------------------------------------------------------
 @Composable
 fun AboutSettingsView() {
+    val context = LocalContext.current
     val currentVersion = remember {
         try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.1" }
         catch (_: Exception) { "1.1" }
     }
-    val context = LocalContext.current
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

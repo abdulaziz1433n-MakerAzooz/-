@@ -7,7 +7,8 @@ import com.google.firebase.firestore.ServerTimestamp
 
 @IgnoreExtraProperties
 data class UserProfile(
-    @DocumentId val userId: String = "",
+    // userId is stored as a regular Firestore field in users/{uid}; do not mark it @DocumentId.
+    val userId: String = "",
     val displayName: String = "",
     val email: String = "",
     val photoUrl: String = "",
